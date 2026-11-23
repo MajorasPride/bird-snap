@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Bird Snap (v0.3 preview)</title>
+<title>Bird Snap (v0.4 preview)</title>
 <style>
   :root { --ink:#3b3226; --paper:#f6f0df; --accent:#c8553d; --leaf:#6f9a4b; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -68,6 +68,10 @@
   .mine { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:6px; }
   .mine img { margin-top:0; }
   .muted { opacity:.7; }
+  select { font:inherit; color:var(--ink); background:var(--paper); border:2px solid var(--ink); border-radius:12px; padding:8px 6px; max-width:32%; }
+  select:disabled { opacity:.6; }
+  #top .chip { font-size:13px; padding:5px 8px; white-space:nowrap; }
+  #progress { pointer-events:auto; cursor:pointer; }
   #lesson { pointer-events:auto; cursor:pointer; background:#fff7d6; }
   #fbox { position:fixed; left:0; top:0; width:54px; height:54px; border:2px solid #fff; outline:2px solid rgba(59,50,38,.6);
     border-radius:6px; display:none; pointer-events:none; }
@@ -101,6 +105,11 @@
     <input id="zoom" type="range" min="0" max="1" step="0.005" value="0">
     <button id="bFocus" style="display:none">Focus: Auto</button>
   </div>
+  <div class="row" id="camRow" style="display:none">
+    <select id="sSh" aria-label="Shutter speed"></select>
+    <select id="sAp" aria-label="Aperture"></select>
+    <select id="sIso" aria-label="ISO"></select>
+  </div>
   <div class="row">
     <button id="bGo">Stop</button>
     <button id="bListen">Listen</button>
@@ -114,7 +123,7 @@
 <div class="overlay" id="start" style="display:flex">
   <div class="card">
     <h1>Bird Snap</h1>
-    <p class="muted">Level 1: The Park &middot; v0.3 preview: Photo School + the Focus unlock</p>
+    <p class="muted">Level 1: The Park &middot; v0.4 preview: Easy mode and Real Shoot mode</p>
     <ul>
       <li><b>Ride.</b> Your cart rolls along the park path by itself. Tap <b>Stop</b> to wait quietly, <b>Go</b> to roll on.</li>
       <li><b>Look.</b> Drag anywhere to look around. Use the zoom slider (or pinch) to get close.</li>
@@ -122,11 +131,13 @@
       <li><b>Snap.</b> Put the bird in the white frame, hold still, tap SNAP.</li>
       <li>A 2-star photo of all 5 park birds finishes the level.</li>
       <li><b>Photo School.</b> Four short lessons you pass by taking a real photo: Framing, Timing, Light, then Focus. Tap the lesson chip at the top any time.</li>
+      <li><b>Two modes.</b> <b>Easy</b> is point and shoot. <b>Real Shoot</b> gives you a real camera: shutter speed, aperture, ISO and manual focus, unlocked one at a time. Tap the birds chip (top left) to switch.</li>
     </ul>
     <p class="muted">PC: drag the mouse to look, wheel to zoom, Space to snap, S stop/go, L listen, J journal, F focus (once unlocked).</p>
     <p class="muted" id="glMsg"></p>
     <div class="btnrow">
-      <button class="big" id="bStart">Start</button>
+      <button class="big" id="bStart">Easy: point and shoot</button>
+      <button class="big" id="bStartReal" style="background:#3b6ea5">Real Shoot: camera settings</button>
       <button class="link" id="bReset">Reset saved progress</button>
     </div>
   </div>
@@ -158,7 +169,7 @@
 
 <div class="overlay" id="school">
   <div class="card">
-    <h2>Photo School</h2>
+    <h2 id="schoolTitle">Photo School</h2>
     <p class="muted" id="schoolSub"></p>
     <div id="schoolList"></div>
     <div class="btnrow"><button class="big" id="bSchoolClose">Try it</button></div>
@@ -178,7 +189,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-/* ============ Bird Snap v0.3 - Level 1 (Park), 3D on-rails prototype + Phase 4 teaching layer ============
+/* ============ Bird Snap v0.4 - Level 1 (Park), 3D on-rails prototype. Easy mode (point and shoot) + Real Shoot mode (camera settings) ============
    three.js r128 (MIT). Placeholder low-poly models built in code.
    Bird calls are synthesized (no audio files, no licenses needed). */
 
@@ -228,11 +239,11 @@ const LOOK = {
 /* ---------- Save data (one browser only; game still works without it) ---------- */
 const SAVE_KEY = 'birdsnap_v03', OLD_KEY = 'birdsnap_v02';
 let save;
-function freshSave() { const s = { journal:{}, tips:{}, done:false, real:{}, lessons:{}, focus:false, mf:false }; ORDER.forEach(k => s.journal[k] = { identified:false, best:0, stars:0, photo:null }); return s; }
+function freshSave() { const s = { journal:{}, tips:{}, done:false, real:{}, lessons:{}, focus:false, mf:false, mode:'easy', rl:{}, cam:{ sh:2, ap:2, iso:0 } }; ORDER.forEach(k => s.journal[k] = { identified:false, best:0, stars:0, photo:null }); return s; }
 save = freshSave();
 try {
   const s = JSON.parse(localStorage.getItem(SAVE_KEY) || localStorage.getItem(OLD_KEY) || 'null');
-  if (s && s.journal) { ORDER.forEach(k => { if (s.journal[k]) save.journal[k] = s.journal[k]; }); save.tips = s.tips || {}; save.done = !!s.done; save.real = s.real || {}; save.lessons = s.lessons || {}; save.focus = !!s.focus || !!s.done; save.mf = !!s.mf; }
+  if (s && s.journal) { ORDER.forEach(k => { if (s.journal[k]) save.journal[k] = s.journal[k]; }); save.tips = s.tips || {}; save.done = !!s.done; save.real = s.real || {}; save.lessons = s.lessons || {}; save.focus = !!s.focus || !!s.done; save.mf = !!s.mf; save.mode = s.mode === 'real' ? 'real' : 'easy'; save.rl = s.rl || {}; if (s.cam) save.cam = s.cam; }
 } catch (e) {}
 function writeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 /* Real reference photos shown in the journal. Built-in ones go here as data: URIs (public-domain / CC0 only, credit logged in the plan doc).
@@ -519,7 +530,7 @@ function update(dt) {
   if (kx || ky) look(kx * 1.4 * dt / zoom, -ky * 1.1 * dt / zoom);
   cart.copy(RAIL.getPointAt(railU));
   const noise = riding ? 1 : 0.4;
-  $('noise').textContent = riding ? 'Riding (noisy)' : 'Stopped (quiet)';
+  $('noise').textContent = riding ? 'Riding' : 'Stopped';
 
   for (const b of birds) {
     const S = SPECIES[b.sp];
@@ -563,8 +574,13 @@ function update(dt) {
   if (hint && now > hint.until) hint = null;
   if (callMark && now > callMark.until) callMark = null;
   $('steady').textContent = ((now - lastLookMove > 0.3) ? 'Steady' : 'Hold still...') +
-    (save.focus && save.mf ? ' · Focus ' + (focusDist == null ? 'not set' : Math.round(focusDist) + ' m') : '');
-  if (save.lessons.timing) {
+    (manualFocus() ? ' · Focus ' + (focusDist == null ? 'not set' : Math.round(focusDist) + ' m') : '');
+  if (IS_REAL()) {
+    const ex = exposure(viewDot()), o = ex.over;
+    $('light').textContent = 'Meter ' + stops(o) + (Math.abs(o) <= 0.5 ? ' OK' : o > 0 ? ' too bright' : ' too dark') + (ex.isoOn ? '' : ' · auto ISO ' + ISO[ex.isoStops]);
+    const fs = 'brightness(' + clamp(Math.pow(2, o * 0.85), 0.12, 4).toFixed(2) + ')';     // the view shows the exposure, like a mirrorless camera
+    if (renderer && fs !== lastFilter) { renderer.domElement.style.filter = fs; lastFilter = fs; }
+  } else if (save.lessons.timing) {
     const yaw = camera.rotation.y, d = -Math.sin(yaw) * SUN_XZ.x - Math.cos(yaw) * SUN_XZ.z;
     $('light').textContent = d > 0.3 ? 'Light: sun behind you' : d < -0.3 ? 'Light: facing the sun' : 'Light: side light';
   }
@@ -642,10 +658,105 @@ const LESSONS = [
     why:'A camera can only make one distance sharp. Focus on the bird and it pops out from a soft background.',
     todo:'Tap <b>Focus</b> to switch it to Manual. Stop the cart, <b>tap the bird</b> on screen to focus on it, then snap before it moves.' }
 ];
-const lessonNow = () => LESSONS.find(l => !save.lessons[l.key]) || null;
+/* Real Shoot mode: the same park, but you set the camera yourself. One setting unlocks per lesson. */
+const RLESSONS = [
+  { key:'shutter', short:'Shutter', name:'Shutter speed', bad:'1/60: smeared', good:'1/1000: frozen',
+    why:'The shutter is how long the camera looks. A long look smears anything that moves. A short look freezes it, but lets in less light.',
+    todo:'Use the <b>shutter</b> menu. Photograph a bird while it is doing something (or flying) and get it sharp, with the meter near 0. Flying birds need 1/1000 or faster.',
+    trade:'Faster shutter = darker photo. For now the camera raises the ISO for you to keep up.' },
+  { key:'aperture', short:'Aperture', name:'Aperture (f-stop)', bad:'f/16: busy', good:'f/2.8: soft',
+    why:'The aperture is the hole in the lens. A wide hole (a small f-number like f/2.8) lets in lots of light and makes the background soft. A small hole (f/16) keeps everything sharp.',
+    todo:'Use the <b>aperture</b> menu. Take a portrait of a bird at <b>f/4 or f/2.8</b> with the meter near 0.',
+    trade:'Wider aperture = brighter photo, so you will need a faster shutter to balance it.' },
+  { key:'iso', short:'ISO', name:'ISO', bad:'ISO 6400: grainy', good:'ISO 100: clean',
+    why:'ISO is how hard the camera boosts the light it caught. High ISO rescues a dark photo, but adds grain.',
+    todo:'Now you set all three. Get the <b>meter to 0</b> at <b>1/500 or faster</b> with <b>ISO 400 or lower</b>.',
+    trade:'This is the exposure triangle: change one setting and another has to move to keep the meter at 0.' },
+  { key:'rfocus', short:'Focus', name:'Manual focus', bad:'Focus on the bush', good:'Focus on the bird',
+    why:'At f/2.8 only a thin slice of the world is sharp, so where you focus really matters.',
+    todo:'Focus is manual from now on. At <b>f/4 or f/2.8</b>, stop the cart, <b>tap the bird</b> on screen to focus (PC: F), then snap.',
+    trade:'Smaller f-number = thinner sharp slice. f/8 forgives a focus miss, f/2.8 does not.' }
+];
+const IS_REAL = () => save.mode === 'real';
+const track = () => IS_REAL() ? RLESSONS : LESSONS;
+const doneMap = () => IS_REAL() ? save.rl : save.lessons;
+const manualFocus = () => IS_REAL() ? !!save.rl.iso : (save.focus && save.mf);
+const lessonNow = () => track().find(l => !doneMap()[l.key]) || null;
+const SH = [60, 125, 250, 500, 1000, 2000, 4000], AP = [2.8, 4, 5.6, 8, 11, 16], ISO = [100, 200, 400, 800, 1600, 3200, 6400];
+const stops = o => (o > 0 ? '+' : '') + o.toFixed(1);
+// which way the camera looks compared with the sunlight: +1 sun behind you, -1 looking into the sun
+function viewDot() { const yaw = camera.rotation.y; return -Math.sin(yaw) * SUN_XZ.x - Math.cos(yaw) * SUN_XZ.z; }
+/* Exposure, counted in stops like a real light meter. over > 0 = too bright, over < 0 = too dark.
+   Settings that are still locked run on auto: aperture sits at f/5.6, ISO moves to balance the meter if it can. */
+function exposure(dot) {
+  const apOn = !!save.rl.shutter, isoOn = !!save.rl.aperture;
+  const ap = apOn ? save.cam.ap : 2, scene = 13.6 + 0.8 * clamp(dot, -1, 1), ev100 = Math.log2(AP[ap] * AP[ap] * SH[save.cam.sh]);
+  const isoStops = isoOn ? save.cam.iso : clamp(Math.round(ev100 - scene), 0, 6);
+  return { sh:save.cam.sh, ap, isoStops, over:scene - (ev100 - isoStops), apOn, isoOn };
+}
+function realScore(r, b, subj, steady) {
+  const ex = r.ex = exposure(viewDot());
+  let need = b.state === 'fly' ? 4 : b.state === 'action' ? 2 : 0;       // slowest shutter that still freezes it
+  if (!steady) need = Math.max(need, 3); if (zoom > 8) need = Math.max(need, 2);
+  r.need = need; r.motion = Math.max(0, need - ex.sh);
+  r.manual = manualFocus();
+  r.focusOK = !r.manual || (focusDist != null && Math.abs(subj.dist - focusDist) <= Math.max(1, subj.dist * (0.06 + 0.05 * ex.ap)));
+  r.sharp = r.motion === 0 ? 15 : r.motion === 1 ? 9 : 4; if (!r.focusOK) r.sharp = Math.min(r.sharp, 5);
+  r.pose = b.state === 'action' ? 20 : b.state === 'fly' ? (r.motion === 0 ? 20 : 6) : 12;
+  const a = Math.abs(ex.over); r.light = a <= 0.5 ? 10 : a <= 1 ? 6 : a <= 2 ? 2 : 0;
+  r.focus = ex.isoStops <= 2 ? 5 : 0;
+  r.total = Math.min(100, r.size + r.framing + r.pose + r.sharp + r.light + r.focus + r.bonus);
+}
+function realDraw(xg, drawIt, r, subj) {
+  const ex = r.ex || exposure(viewDot()), br = clamp(Math.pow(2, ex.over * 0.85), 0.12, 4);
+  const f = px => { try { xg.filter = 'brightness(' + br.toFixed(2) + ')' + (px > 0.05 ? ' blur(' + px.toFixed(1) + 'px)' : ''); } catch (e) {} };
+  if (!subj) { f(0); drawIt(); }
+  else {
+    const dof = [3.2, 2.4, 1.6, 0.8, 0.3, 0][ex.ap], shake = r.motion > 0 && r.state === 'idle' ? 1.2 * r.motion : 0;
+    f(Math.max(dof, shake)); drawIt();                                   // background: soft at wide apertures
+    xg.save(); xg.beginPath(); xg.ellipse(subj.px, subj.py, subj.hw * 1.5 + 6, subj.hh * 1.8 + 6, 0, 0, 6.283); xg.clip();
+    f(Math.min(4, r.motion > 0 ? 1.3 * r.motion : r.focusOK ? 0 : 2.6)); drawIt(); xg.restore();   // the bird: motion blur or missed focus
+  }
+  try { xg.filter = 'none'; } catch (e) {}
+  if (ex.isoStops > 0) {                                                  // high ISO = grain
+    try { const id = xg.getImageData(0, 0, PW, PH), d = id.data, amp = ex.isoStops * 11;
+      for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * amp; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+      xg.putImageData(id, 0, 0); } catch (e) {}
+  }
+}
+function realComment(r) {
+  const S = SPECIES[r.sp], ex = r.ex, o = ex.over, shs = '1/' + SH[ex.sh], good = [], fix = [];
+  if (o > 1) fix.push('Too bright by about ' + o.toFixed(1) + ' stops, so it looks washed out. Use ' + ['a <b>faster shutter</b>'].concat(ex.apOn ? ['a bigger f-number'] : [], ex.isoOn ? ['a lower ISO'] : []).join(' or ') + '.');
+  else if (o < -1) fix.push('Too dark by about ' + (-o).toFixed(1) + ' stops. Use ' + ['a <b>slower shutter</b>'].concat(ex.apOn ? ['a smaller f-number'] : [], ex.isoOn ? ['a higher ISO'] : []).join(' or ') + '.');
+  else if (Math.abs(o) <= 0.5) good.push('the exposure is right');
+  if (r.motion > 0) fix.push((r.state === 'fly' ? 'The bird was flying' : r.state === 'action' ? 'The bird was moving' : 'The camera was moving') + ', and ' + shs + ' was too slow to freeze it. Try <b>1/' + SH[r.need] + '</b> or faster.');
+  else if (r.state !== 'idle') good.push('you froze the action at ' + shs);
+  if (!r.focusOK) fix.push(r.focusDist == null ? 'Focus is manual now and it is not set. <b>Tap the bird</b> on screen to focus, then snap.'
+    : 'Your focus was set about ' + Math.round(r.focusDist) + ' m away, but the bird was ' + Math.round(r.dist) + ' m away. <b>Tap the bird</b> to focus.');
+  if (r.cut) fix.push('Part of the bird is cut off. Keep the <b>whole bird</b> inside the frame.');
+  if (r.size < 13) fix.push('The bird is tiny in the frame. <b>Zoom in</b> more.');
+  if (ex.isoStops >= 4) fix.push('ISO ' + ISO[ex.isoStops] + ' made it grainy. ' + (ex.isoOn ? 'Lower the ISO and open the aperture or slow the shutter instead.' : 'The camera had to raise the ISO because the shutter is so fast. A slower shutter lets it drop.'));
+  if (ex.apOn && ex.ap <= 1 && r.focusOK) good.push('f/' + AP[ex.ap] + ' gave you a soft background');
+  if (r.state === 'idle') fix.push('Next time, wait for it to do something: ' + S.action + '.');
+  return (good.length ? 'Nice, ' + good.slice(0, 2).join(' and ') + '. ' : '') + (fix.length ? fix[0] : 'That is a keeper!');
+}
+function fillSel(el, labels, idx, on, autoLabel) {
+  el.innerHTML = on ? labels.map((t, i) => '<option value="' + i + '"' + (i === idx ? ' selected' : '') + '>' + t + '</option>').join('') : '<option>' + autoLabel + '</option>';
+  el.disabled = !on;
+}
+$('sSh').onchange = e => { save.cam.sh = +e.target.value; writeSave(); };
+$('sAp').onchange = e => { save.cam.ap = +e.target.value; writeSave(); };
+$('sIso').onchange = e => { save.cam.iso = +e.target.value; writeSave(); };
+let lastFilter = '';
 let passedLesson = null, focusDist = null, fboxUntil = 0;
 function lessonFail(l, r) {            // '' means passed, otherwise the reason in plain words
   if (!r.sp) return 'you need a bird in the frame';
+  if (l.key === 'shutter') return r.state === 'idle' ? 'it was just sitting. Wait for it to move' : r.motion > 0 ? '1/' + SH[r.ex.sh] + ' was too slow. Try 1/' + SH[r.need] + ' or faster'
+    : r.light < 6 ? 'the photo is too ' + (r.ex.over > 0 ? 'bright' : 'dark') + '. Check the meter' : '';
+  if (l.key === 'aperture') return r.ex.ap > 1 ? 'open the aperture to f/4 or f/2.8' : r.light < 6 ? 'the meter was at ' + stops(r.ex.over) + '. Get it near 0' : r.hFrac < 0.15 ? 'zoom in so the bird stands out' : '';
+  if (l.key === 'iso') return Math.abs(r.ex.over) > 0.5 ? 'the meter was at ' + stops(r.ex.over) + '. Get it to 0' : r.ex.sh < 3 ? 'use 1/500 or faster' : r.ex.isoStops > 2 ? 'the ISO is too high. Open the aperture instead' : '';
+  if (l.key === 'rfocus') return r.focusDist == null ? 'tap the bird on screen to set the focus' : !r.focusOK ? 'the focus was set about ' + Math.round(r.focusDist) + ' m away but the bird was ' + Math.round(r.dist) + ' m away'
+    : r.ex.ap > 1 ? 'use f/4 or f/2.8 so the focus really matters' : '';
   if (l.key === 'framing') return r.cut ? 'part of the bird is cut off' : r.hFrac < 0.15 ? 'the bird is still too small, so zoom in more' : r.hFrac > 0.8 ? 'that is too tight, so zoom out a little' : '';
   if (l.key === 'timing') return r.state === 'action' ? '' : r.state === 'fly' ? 'it was flying. Wait until it lands' : 'it was just sitting. Wait for it to start ' + SPECIES[r.sp].action;
   if (l.key === 'light') return r.light >= 8 ? '' : r.light <= 3 ? 'you were looking toward the sun, so the bird is dark' : 'that is side light. Get the sun more behind you';
@@ -655,10 +766,16 @@ function lessonFail(l, r) {            // '' means passed, otherwise the reason 
     : 'the focus was set about ' + Math.round(r.focusDist) + ' m away but the bird was ' + Math.round(r.dist) + ' m away';
 }
 function updateLessonUI() {
-  const l = lessonNow();
-  $('lesson').textContent = l ? 'Lesson ' + (LESSONS.indexOf(l) + 1) + '/4: ' + l.short + ' ▸' : 'Photo School ✓';
-  $('light').style.display = save.lessons.timing ? 'block' : 'none';
-  $('bFocus').style.display = save.focus ? 'inline-block' : 'none';
+  const l = lessonNow(), real = IS_REAL();
+  $('lesson').textContent = l ? 'Lesson ' + (track().indexOf(l) + 1) + '/4: ' + l.short + ' ▸' : real ? 'Camera School ✓' : 'Photo School ✓';
+  $('light').style.display = real || save.lessons.timing ? 'block' : 'none';
+  $('bFocus').style.display = !real && save.focus ? 'inline-block' : 'none';
+  $('camRow').style.display = real ? 'flex' : 'none';
+  if (real) {
+    fillSel($('sSh'), SH.map(v => '1/' + v), save.cam.sh, true);
+    fillSel($('sAp'), AP.map(v => 'f/' + v), save.cam.ap, !!save.rl.shutter, 'f/5.6 auto');
+    fillSel($('sIso'), ISO.map(v => 'ISO ' + v), save.cam.iso, !!save.rl.aperture, 'ISO auto');
+  } else if (renderer) { renderer.domElement.style.filter = ''; lastFilter = ''; }
   $('bFocus').textContent = 'Focus: ' + (save.mf ? 'Manual' : 'Auto');
 }
 function lessonSketch(c, key, l) {     // two little photos side by side: the mistake, then the fix
@@ -676,7 +793,10 @@ function lessonSketch(c, key, l) {     // two little photos side by side: the mi
       if (good) { sketchBird(c, 'robin', fx + 72, fy + 44, 2.6); ell(c, fx + 16, fy + 70, 9, 9, '#f2c14e', 1.5); line(c, fx + 28, fy + 62, fx + 44, fy + 52, '#c8553d', 2); }
       else { c.fillStyle = '#fff6cf'; c.fillRect(fx, fy, W, H); ell(c, fx + 106, fy + 22, 13, 13, '#f2c14e', 1.5); sketchBird(c, 'robin', fx + 62, fy + 50, 2.6, true); }
     }
-    if (key === 'focus') {
+    if (key === 'shutter') { try { c.filter = good ? 'none' : 'blur(3px)'; } catch (e) {} sketchBird(c, 'jay', fx + 60, fy + 48, 2.7); try { c.filter = 'none'; } catch (e) {} }
+    if (key === 'aperture') { try { c.filter = good ? 'blur(2.6px)' : 'none'; } catch (e) {} ell(c, fx + 104, fy + 58, 30, 22, '#7ea554', 1.5); ell(c, fx + 20, fy + 30, 18, 14, '#8fb863', 1.5); try { c.filter = 'none'; } catch (e) {} sketchBird(c, 'robin', fx + 58, fy + 48, 2.6); }
+    if (key === 'iso') { sketchBird(c, 'mallard', fx + 60, fy + 48, 2.7); if (!good) for (let i = 0; i < 520; i++) { c.fillStyle = i % 2 ? 'rgba(40,40,40,.55)' : 'rgba(255,255,255,.7)'; c.fillRect(fx + (i * 53.7) % W, fy + (i * 31.3) % H, 1.6, 1.6); } }
+    if (key === 'focus' || key === 'rfocus') {
       const soft = on => { try { c.filter = on ? 'blur(2.2px)' : 'none'; } catch (e) {} };
       soft(good); ell(c, fx + 104, fy + 58, 30, 22, '#7ea554', 1.5); soft(!good); sketchBird(c, 'robin', fx + 52, fy + 48, 2.6); soft(false);
     }
@@ -689,14 +809,15 @@ function openSchool(onlyKey) {
   if (!running) return;
   paused = true;
   const cur = lessonNow(), list = $('schoolList'); list.innerHTML = '';
+  $('schoolTitle').textContent = IS_REAL() ? 'Camera School (Real Shoot)' : 'Photo School';
   $('schoolSub').textContent = cur ? 'Each lesson is passed by taking a real photo in the park.' : 'All four lessons passed. Practise any of them whenever you like.';
-  LESSONS.forEach((l, i) => {
+  track().forEach((l, i) => {
     if (onlyKey && l.key !== onlyKey) return;
-    const done = !!save.lessons[l.key], locked = l.key === 'focus' && !save.focus;
+    const done = !!doneMap()[l.key], locked = l.key === 'focus' && !save.focus;
     const d = document.createElement('div'); d.className = 'lcard' + (cur === l ? ' now' : '') + (locked ? ' locked' : '');
     d.innerHTML = '<b style="font-size:17px">Lesson ' + (i + 1) + ': ' + l.name + '</b> <span class="muted">' + (done ? '✓ passed' : locked ? 'unlocks after the Light lesson' : cur === l ? 'your lesson now' : 'coming up') + '</span>';
     const cv = document.createElement('canvas'); cv.width = 300; cv.height = 108; lessonSketch(cv.getContext('2d'), l.key, l); d.appendChild(cv);
-    const p = document.createElement('div'); p.innerHTML = '<p><b>Why:</b> ' + l.why + '</p><p><b>Do this:</b> ' + l.todo + '</p>'; d.appendChild(p);
+    const p = document.createElement('div'); p.innerHTML = '<p><b>Why:</b> ' + l.why + '</p><p><b>Do this:</b> ' + l.todo + '</p>' + (l.trade ? '<p><b>Trade-off:</b> ' + l.trade + '</p>' : ''); d.appendChild(p);
     list.appendChild(d);
   });
   $('bSchoolClose').textContent = cur ? 'Try it' : 'Close';
@@ -707,7 +828,7 @@ $('lesson').onclick = () => { if (running && !paused) openSchool(); };
 
 /* Focus (the first camera unlock). Manual focus = you choose which distance is sharp by tapping it. */
 function focusAt(sx, sy) {
-  if (!running || paused || !save.focus || !save.mf) return;
+  if (!running || paused || !manualFocus()) return;
   poseCamera();
   ray.setFromCamera({ x:sx / vw * 2 - 1, y:-(sy / vh * 2 - 1) }, camera); ray.far = 400;
   const o = ray.ray.origin, d = ray.ray.direction;
@@ -763,12 +884,13 @@ function takePhoto() {
     // light: is the sun behind the camera (bird lit) or behind the bird (dark shape)?
     r.lightDot = lightDot(b); r.light = Math.round(10 * clamp((r.lightDot + 0.5) / 0.8, 0, 1));
     // focus: only matters in Manual. Sharp when the focus distance matches the bird's distance.
-    r.manual = save.focus && save.mf; r.dist = subj.dist; r.focusDist = focusDist;
+    r.manual = manualFocus(); r.dist = subj.dist; r.focusDist = focusDist;
     r.focusOK = r.manual && focusDist != null && Math.abs(subj.dist - focusDist) <= Math.max(1.2, subj.dist * 0.15);
     if (r.manual && !r.focusOK) r.sharp = Math.min(r.sharp, 5);
     r.focus = r.focusOK && r.sharp === 15 ? 5 : 0;
     r.bonus = save.journal[b.sp].identified ? 10 : 0;
     r.total = Math.min(100, r.size + r.framing + r.pose + r.sharp + r.light + r.focus + r.bonus); r.cut = subj.vis < 0.97;
+    if (IS_REAL()) realScore(r, b, subj, steady);
   }
   r.stars = r.total >= 80 ? 3 : r.total >= 60 ? 2 : r.total >= 35 ? 1 : 0;
   // the picture itself: crop the white frame out of the 3D view (blurred if not sharp)
@@ -778,7 +900,8 @@ function takePhoto() {
     const out = document.createElement('canvas'); out.width = PW; out.height = PH; const xg = out.getContext('2d'), pr = renderer.getPixelRatio();
     const drawIt = () => xg.drawImage(renderer.domElement, f.x * pr, f.y * pr, f.w * pr, f.h * pr, 0, 0, PW, PH);
     const blur = px => { try { xg.filter = px ? 'blur(' + px + 'px)' : 'none'; } catch (e) {} };
-    if (subj && r.sharp < 15) { blur(r.sharp <= 5 ? 2.6 : 1.8); drawIt(); blur(0); }
+    if (IS_REAL()) realDraw(xg, drawIt, r, subj);
+    else if (subj && r.sharp < 15) { blur(r.sharp <= 5 ? 2.6 : 1.8); drawIt(); blur(0); }
     else if (subj && r.focusOK) {            // manual focus on the bird: soft background, sharp bird
       blur(2.4); drawIt(); blur(0);
       xg.save(); xg.beginPath(); xg.ellipse(subj.px, subj.py, subj.hw * 1.5 + 6, subj.hh * 1.8 + 6, 0, 0, 6.283); xg.clip(); drawIt(); xg.restore();
@@ -795,6 +918,7 @@ function takePhoto() {
 function teacherComment(r) {
   if (!r.sp) return r.hidden ? 'The bird is hidden behind something. Roll on a little or wait for it to move, so you get a clear view.'
     : 'No bird in this one. Get a bird inside the white frame before you snap. Follow the note marker to find one.';
+  if (IS_REAL()) return realComment(r);
   const S = SPECIES[r.sp], known = save.journal[r.sp].identified, nm = known ? 'the ' + S.name : 'this mystery bird';
   const good = [], fix = [];
   if (r.size >= 22) good.push('you filled the frame nicely'); else if (r.size < 13) fix.push('The bird is tiny in the frame. <b>Zoom in</b> more so it fills the picture.');
@@ -816,12 +940,14 @@ function showPhoto(r, url) {
   const S = r.sp ? SPECIES[r.sp] : null, J = r.sp ? save.journal[r.sp] : null;
   $('photoTitle').textContent = !r.sp ? 'No bird in frame' : J.identified ? S.name : 'Mystery bird';
   $('photoImg').src = url; $('photoStars').textContent = starStr(r.stars) + '  ' + r.total + '/100';
+  $('photoTitle').textContent += r.ex ? '  ·  1/' + SH[r.ex.sh] + '  f/' + AP[r.ex.ap] + '  ISO ' + ISO[r.ex.isoStops] : '';
   const rows = [['Size', r.size, 25], ['Framing', r.framing, 20], ['Pose', r.pose, 20], ['Sharpness', r.sharp, 15], ['Light', r.light, 10], ['Named it', r.bonus, 10]];
-  if (save.focus) rows.push(['Focus bonus', r.focus, 5]);
+  if (IS_REAL()) { rows[4][0] = 'Exposure'; rows.push(['Low grain', r.focus, 5]); }
+  else if (save.focus) rows.push(['Focus bonus', r.focus, 5]);
   const les = lessonNow(); let lessonMsg = '';
   if (les && r.sp) {
     const why = lessonFail(les, r);
-    if (!why) { save.lessons[les.key] = 1; if (les.key === 'light') save.focus = true; passedLesson = les; lessonMsg = '<br><b>Lesson passed: ' + les.short + '!</b>'; writeSave(); updateLessonUI(); }
+    if (!why) { doneMap()[les.key] = 1; if (les.key === 'light') save.focus = true; if (les.key === 'iso') focusDist = null; passedLesson = les; lessonMsg = '<br><b>Lesson passed: ' + les.short + '!</b>'; writeSave(); updateLessonUI(); }
     else lessonMsg = '<br><span class="muted">Lesson (' + les.short + '): not yet, ' + why + '.</span>';
   }
   $('photoBars').innerHTML = r.sp ? rows.map(x => '<div class="bar"><span>' + x[0] + '</span><i><b style="width:' + (x[1] / x[2] * 100) + '%"></b></i><span>' + x[1] + '/' + x[2] + '</span></div>').join('') : '';
@@ -839,13 +965,13 @@ $('bKeep').onclick = () => {
   if (passedLesson) {
     const was = passedLesson; passedLesson = null; const n = lessonNow();
     if (n) { openSchool(n.key); return; }
-    if (was) toast('That is all four lessons. <b>Photo School complete!</b> Framing, timing, light and focus work on every bird, in every level.', 9);
+    toast(IS_REAL() ? 'That is all four camera lessons. <b>You are shooting fully manual now</b>: shutter, aperture, ISO and focus, just like a real camera.' : 'That is all four lessons. <b>Photo School complete!</b> Framing, timing, light and focus work on every bird, in every level.', 9);
   }
   paused = false; checkDone();
 };
 $('bPhotoJournal').onclick = () => { $('photoPanel').style.display = 'none'; passedLesson = null; openJournal(); };
 const doneCount = () => ORDER.filter(k => save.journal[k].stars >= 2).length;
-function updateProgress() { $('progress').textContent = 'Birds ' + doneCount() + '/5'; }
+function updateProgress() { $('progress').textContent = 'Birds ' + doneCount() + '/5 · ' + (IS_REAL() ? 'Real' : 'Easy') + ' ▸'; }
 function checkDone() {
   if (!save.done && doneCount() === 5) {
     const had = save.focus; save.done = true; save.focus = true; writeSave(); updateLessonUI();
@@ -966,14 +1092,18 @@ $('realFile').addEventListener('change', e => {
 $('bJournalClose').onclick = () => { $('journal').style.display = 'none'; paused = false; checkDone(); };
 
 /* ---------- Start ---------- */
-$('bStart').onclick = () => {
+function startGame(mode) {
   if (!glOK) return;
-  initAudio(); $('start').style.display = 'none'; $('hud').style.display = 'flex'; $('frame').style.display = 'block';
-  running = true; paused = false; nextCallAt = now + 3.5; updateProgress();
+  save.mode = mode; writeSave();
+  if (!AC) initAudio(); $('start').style.display = 'none'; $('hud').style.display = 'flex'; $('frame').style.display = 'block';
+  if (!running) nextCallAt = now + 3.5;
+  running = true; paused = false; focusDist = null; updateProgress();
   updateLessonUI();
   if (!save.tips.hello) { save.tips.hello = 1; writeSave(); toast('Welcome to the park! Drag to look around. The cart rolls on its own. Keep your ears open.', 6); }
   const l0 = lessonNow(); if (l0) openSchool(l0.key);
-};
+}
+$('bStart').onclick = () => startGame('easy'); $('bStartReal').onclick = () => startGame('real');
+$('progress').onclick = () => { if (running && !paused) { paused = true; $('start').style.display = 'flex'; } };
 $('bReset').onclick = () => { try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(OLD_KEY); } catch (e) {} save = freshSave(); updateLessonUI(); $('bReset').textContent = 'Progress reset'; updateProgress(); };
 
 buildWorld(); buildSpots(); makeBirds(); resize(); updateProgress(); updateLessonUI();

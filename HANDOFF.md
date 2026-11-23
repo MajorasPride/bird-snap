@@ -25,6 +25,16 @@ https://claude.ai/artifact/A7n5AaFQ5S8tPmaviGBykZ (private)
 - Save key birdsnap_v03 (reads v02 progress once).
 - Tested headless at phone and PC sizes; not yet on a real phone.
 
+## v0.4 preview (this branch, Nov 23, 2026)
+His note on v0.3: fine as a quick, fun Easy mode (keep the point-and-shoot), but he wants to change
+settings like a real shoot. So v0.4 has two modes, picked on the start screen (tap the birds chip to switch):
+- Easy: v0.3 exactly as it was.
+- Real Shoot: shutter speed, aperture, ISO and manual focus, unlocked one at a time through four
+  camera lessons. Light meter in stops, the view brightens/darkens with the exposure, slow shutter
+  smears moving birds, wide aperture softens the background, high ISO adds grain. Locked settings run on auto.
+- Park holds all four camera lessons for now; when the other levels exist, spread them out (one per level).
+- Cart speed: he said the ride is fast but OK for now (add-on: speed setting).
+
 ## Next step
 His playtest notes, then Phase 4: teaching layer (framing, focus, light, timing taught by
 doing) and the Focus camera unlock.
