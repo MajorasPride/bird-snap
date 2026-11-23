@@ -13,6 +13,18 @@ Phase 3 prototype v0.2: `index.html`, Level 1 (Park), 3D on rails, three.js r128
 Approved as the base. Not live anywhere.
 Private preview: https://claude.ai/artifact/DSsBZV4DKdmNdG9ihCNYcv
 
+## v0.3 preview (this branch, Nov 23, 2026)
+Phase 4 teaching layer, built as a separate preview until he has checked it:
+https://claude.ai/artifact/A7n5AaFQ5S8tPmaviGBykZ (private)
+- Photo School: 4 lessons, each passed by taking a real photo: Framing, Timing, Light, Focus.
+  Each lesson card has a two-picture sketch (the mistake, the fix), a Why and a Do this.
+- Light: a visible sun; birds seen against the sun turn dark; Light chip; Light is 10 of the 100 points.
+- Focus unlock (after the Light lesson or level complete): Auto/Manual button. In Manual, tap the
+  bird (PC: F) to set the focus distance; right focus gives a soft background and +5.
+- Score split is now Size 25, Framing 20, Pose 20, Sharpness 15, Light 10, Named it 10 (+5 Focus, capped at 100).
+- Save key birdsnap_v03 (reads v02 progress once).
+- Tested headless at phone and PC sizes; not yet on a real phone.
+
 ## Next step
 His playtest notes, then Phase 4: teaching layer (framing, focus, light, timing taught by
 doing) and the Focus camera unlock.
